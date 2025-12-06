@@ -1,10 +1,12 @@
 package com.rental.services.CarRental.product.controller;
 
+import com.rental.services.CarRental.product.dto.VehicleDTO;
 import com.rental.services.CarRental.product.entity.VehicleBooking;
 import com.rental.services.CarRental.product.entity.VehicleEntity;
 import com.rental.services.CarRental.product.service.VehicleInventoryManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -16,7 +18,7 @@ public class VehicleController {
     private VehicleInventoryManager vehicleInventoryManager;
 
     @PostMapping("/vehicles/save")
-    public VehicleEntity saveVehicle(@RequestBody VehicleEntity vehicle){
+    public VehicleEntity saveVehicle(@Validated @RequestBody VehicleDTO vehicle){
         return vehicleInventoryManager.addVehicle(vehicle);
     }
 
