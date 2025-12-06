@@ -15,9 +15,8 @@ public class PaymentController {
 
     @PostMapping("/processPayment")
     public ResponseEntity<String> processPayment(@RequestParam int billId,
-                                                 @RequestParam double amountPaid,
-                                                 @RequestParam String paymentMode) {
-        paymentService.processPayment(billId, amountPaid, paymentMode);
+                                                 @RequestParam double amountPaid) {
+        paymentService.processPayment(billId, amountPaid);
         return ResponseEntity.ok("Payment processed successfully");
     }
 }
