@@ -1,0 +1,178 @@
+package com.rental.services.CarRental.product.service;
+
+import com.rental.services.CarRental.product.enums.VehicleStatus;
+import com.rental.services.CarRental.product.enums.VehicleType;
+import com.rental.services.CarRental.product.entity.VehicleBooking;
+import com.rental.services.CarRental.product.entity.VehicleEntity;
+import com.rental.services.CarRental.product.repositories.VehicleBookingRepository;
+import com.rental.services.CarRental.product.repositories.VehicleRepository;
+import com.rental.services.CarRental.product.utility.DateInterval;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Service;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
+
+@Slf4j
+@Service
+public class VehicleInventoryManager {
+
+    @Autowired
+    private VehicleRepository vehicleRepository;
+
+    @Autowired
+    private VehicleBookingRepository vehicleBookingRepository;
+
+    public VehicleEntity addVehicle(VehicleEntity vehicle) {
+        vehicle.setVehicleStatus(vehicle.getVehicleStatus().toUpperCase());
+        return vehicleRepository.save(vehicle);
+    }
+
+    public Optional<VehicleEntity> getVehicle(int vehicleId) {
+        return vehicleRepository.findById(vehicleId);
+    }
+
+    // Pessimistic locking - locks the row in DB
+    @Transactional
+    public boolean isAvailable(int vehicleId, LocalDate from, LocalDate to) {
+        log.info("Checking availability for vehicleId: {}, from: {}, to: {}", vehicleId, from, to);
+        log.info("Acquiring lock for vehicleId: {}", vehicleId);
+        VehicleEntity vehicle = vehicleRepository.findByIdWithLock(vehicleId);
+
+        if (vehicle == null) return false;
+        if (vehicle.getVehicleStatus() == VehicleStatus.MAINTENANCE.toString()) return false;
+
+        DateInterval requested = new DateInterval(from, to);
+        log.info("Requested interval: {} to {}", from, to);
+        log.info("Fetching bookings for vehicleId: {}", vehicleId);
+        List<VehicleBooking> bookings = vehicleBookingRepository.findByVehicleId(vehicleId);
+
+        for (VehicleBooking booking : bookings) {
+            DateInterval bookedInterval = new DateInterval(booking.getBookedFrom(), booking.getBookedTo());
+            if (bookedInterval.overlaps(requested)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    @Transactional
+    public boolean reserve(int vehicleId, LocalDate from, LocalDate to) {
+
+        // Locks the vehicle row for update
+        log.info("Reserving vehicleId: {} ", vehicleId);
+        log.info("Acquiring ReentrantLock for vehicleId: {}", vehicleId);
+        ReentrantLock lock = new ReentrantLock();
+        lock.lock();
+        try{
+        VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+        log.info("Fetched vehicle for vehicleId: {} with status: {}", vehicleId, vehicle != null ? vehicle.getVehicleStatus() : "null");
+
+        if (vehicle == null || VehicleStatus.MAINTENANCE.toString().equals(vehicle.getVehicleStatus()) || VehicleStatus.BOOKED.toString().equals(vehicle.getVehicleStatus())) {
+            log.info("Vehicle is either null or not available for booking.");
+            return false;
+        }
+
+        if (!isAvailable(vehicleId, from, to)) {
+            return false;
+        }
+        log.info("Vehicle is available, proceeding with booking.");
+        VehicleBooking vehicleBooking = new VehicleBooking();
+        vehicleBooking.setBookedFrom(from);
+        vehicleBooking.setBookedTo(to);
+        vehicleBooking.setVehicle(vehicle);
+        vehicleBookingRepository.save(vehicleBooking);
+
+        vehicle.setVehicleStatus(VehicleStatus.BOOKED.toString());
+        log.info("Updating vehicle status to BOOKED for vehicleId: {}", vehicle.getVehicleID());
+        vehicleRepository.save(vehicle);
+        return true;}
+        finally {
+            lock.unlock();
+        }
+    }
+
+    @Transactional
+    public void release(int vehicleId, int reservationId) {
+        log.info("Releasing vehicleId: {} for reservationId: {}", vehicleId, reservationId);
+        log.info("Acquiring ReentrantLock for vehicleId: {}", vehicleId);
+        ReentrantLock lock = new ReentrantLock();
+        lock.lock();
+        try {
+            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+
+            vehicleBookingRepository.deleteByVehicleIdAndReservationId(vehicleId, reservationId);
+
+            List<VehicleBooking> remainingBookings = vehicleBookingRepository.findByVehicleId(vehicleId);
+
+            if (remainingBookings.isEmpty()) {
+                vehicle.setVehicleStatus(VehicleStatus.AVAILABLE.toString());
+                vehicleRepository.save(vehicle);
+            }
+        }finally {
+            lock.unlock();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<VehicleEntity> getAvailableVehicles(VehicleType type, LocalDate from, LocalDate to) {
+        return vehicleRepository.findAvailableVehicles(type, from, to);
+    }
+
+    public List<VehicleEntity> getAllAvailableVehicles(LocalDate from, LocalDate to) {
+        return vehicleRepository.findAllAvailableVehicles(from, to);
+    }
+
+    public List<VehicleBooking> getAllBookingsForVehicle(int vehicleId) {
+        return vehicleBookingRepository.findByVehicleId(vehicleId);
+    }
+
+    public boolean cancelBooking(int vehicleId, int reservationId) {
+        release(vehicleId, reservationId);
+        return true;
+    }
+    @Transactional
+    public VehicleBooking modifyBooking(int vehicleId, int reservationId, LocalDate newFrom, LocalDate newTo) {
+        log.info("Modifying booking for vehicleId: {}, reservationId: {}", vehicleId, reservationId);
+        log.info("Acquiring ReentrantLock for vehicleId: {}", vehicleId);
+        ReentrantLock lock = new ReentrantLock();
+        lock.lock();
+        try {
+            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+
+            if (vehicle == null) {
+                log.warn("Vehicle not found for vehicleId: {}", vehicleId);
+                return null;
+            }
+            List<VehicleBooking> bookings = vehicleBookingRepository.findByVehicleId(vehicleId);
+            VehicleBooking bookingToModify = null;
+            for (VehicleBooking booking : bookings) {
+                if (booking.getReservationId() == reservationId) {
+                    bookingToModify = booking;
+                    break;
+                }
+            }
+            if (bookingToModify == null) {
+                log.warn("Booking not found for reservationId: {}", reservationId);
+                return null;
+            }
+                bookingToModify.setBookedFrom(newFrom);
+                bookingToModify.setBookedTo(newTo);
+                vehicleBookingRepository.save(bookingToModify);
+                log.info("Booking modified successfully for reservationId: {}", reservationId);
+
+            return bookingToModify;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public VehicleBooking getBookingDetails(int reservationId) {
+        return vehicleBookingRepository.findById(reservationId).orElse(null);
+    }
+}
+
