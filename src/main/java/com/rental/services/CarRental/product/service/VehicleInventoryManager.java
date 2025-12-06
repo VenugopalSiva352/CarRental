@@ -1,5 +1,6 @@
 package com.rental.services.CarRental.product.service;
 
+import com.rental.services.CarRental.product.dto.VehicleDTO;
 import com.rental.services.CarRental.product.enums.VehicleStatus;
 import com.rental.services.CarRental.product.enums.VehicleType;
 import com.rental.services.CarRental.product.entity.VehicleBooking;
@@ -26,9 +27,13 @@ public class VehicleInventoryManager {
     @Autowired
     private VehicleBookingRepository vehicleBookingRepository;
 
-    public VehicleEntity addVehicle(VehicleEntity vehicle) {
-        vehicle.setVehicleStatus(vehicle.getVehicleStatus().toUpperCase());
-        return vehicleRepository.save(vehicle);
+    public VehicleEntity addVehicle(VehicleDTO vehicle) {
+        VehicleEntity vehicleEntity = VehicleEntity.builder().vehicleNumber(vehicle.getVehicleNumber())
+                .vehicleType(vehicle.getVehicleType().toString())
+                .vehicleStatus(VehicleStatus.AVAILABLE.toString())
+                .dailyRentalCost(vehicle.getDailyRentalCost())
+                .build();
+        return vehicleRepository.save(vehicleEntity);
     }
 
     public Optional<VehicleEntity> getVehicle(int vehicleId) {
