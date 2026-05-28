@@ -74,7 +74,7 @@ public class VehicleInventoryManager {
         ReentrantLock lock = new ReentrantLock();
         lock.lock();
         try{
-        VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+        VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId).get();
         log.info("Fetched vehicle for vehicleId: {} with status: {}", vehicleId, vehicle != null ? vehicle.getVehicleStatus() : "null");
 
         if (vehicle == null || VehicleStatus.MAINTENANCE.toString().equals(vehicle.getVehicleStatus()) || VehicleStatus.BOOKED.toString().equals(vehicle.getVehicleStatus())) {
@@ -108,7 +108,7 @@ public class VehicleInventoryManager {
         ReentrantLock lock = new ReentrantLock();
         lock.lock();
         try {
-            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId).get();
 
             vehicleBookingRepository.deleteByVehicleIdAndReservationId(vehicleId, reservationId);
 
@@ -147,9 +147,9 @@ public class VehicleInventoryManager {
         ReentrantLock lock = new ReentrantLock();
         lock.lock();
         try {
-            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId);
+            Optional<VehicleEntity> vehicleEntity = vehicleRepository.findByIdForUpdate(vehicleId);
 
-            if (vehicle == null) {
+            if (vehicleEntity.isEmpty()) {
                 log.warn("Vehicle not found for vehicleId: {}", vehicleId);
                 return null;
             }
