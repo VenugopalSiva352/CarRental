@@ -1,8 +1,8 @@
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin
 
-LABEL maintainer="Venugopal R "
-      name="Car Rental Service"
-      description="A microservice for managing car rentals"
+LABEL maintainer="venugopalrs" \
+      name="Car Rental Service" \
+      description="A microservice for managing car rentals" \
       version="1.0.0"
 WORKDIR /app
 
