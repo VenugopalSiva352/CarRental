@@ -1,17 +1,19 @@
 package com.rental.services.CarRental.product.service;
 
+import com.rental.services.CarRental.product.dto.ReservationDTO;
 import com.rental.services.CarRental.product.dto.VehicleDTO;
-import com.rental.services.CarRental.product.enums.VehicleStatus;
-import com.rental.services.CarRental.product.enums.VehicleType;
 import com.rental.services.CarRental.product.entity.VehicleBooking;
 import com.rental.services.CarRental.product.entity.VehicleEntity;
+import com.rental.services.CarRental.product.enums.VehicleStatus;
+import com.rental.services.CarRental.product.enums.VehicleType;
 import com.rental.services.CarRental.product.repositories.VehicleBookingRepository;
 import com.rental.services.CarRental.product.repositories.VehicleRepository;
 import com.rental.services.CarRental.product.utility.DateInterval;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +31,7 @@ public class VehicleInventoryManager {
 
     public VehicleEntity addVehicle(VehicleDTO vehicle) {
         VehicleEntity vehicleEntity = VehicleEntity.builder().vehicleNumber(vehicle.getVehicleNumber())
-                .vehicleType(vehicle.getVehicleType().toString())
+                .vehicleType(vehicle.getVehicleType())
                 .vehicleStatus(VehicleStatus.AVAILABLE.toString())
                 .dailyRentalCost(vehicle.getDailyRentalCost())
                 .build();
@@ -48,7 +50,7 @@ public class VehicleInventoryManager {
         VehicleEntity vehicle = vehicleRepository.findByIdWithLock(vehicleId);
 
         if (vehicle == null) return false;
-        if (vehicle.getVehicleStatus() == VehicleStatus.MAINTENANCE.toString()) return false;
+        if (VehicleStatus.MAINTENANCE.toString().equals(vehicle.getVehicleStatus())) return false;
 
         DateInterval requested = new DateInterval(from, to);
         log.info("Requested interval: {} to {}", from, to);
@@ -74,28 +76,33 @@ public class VehicleInventoryManager {
         ReentrantLock lock = new ReentrantLock();
         lock.lock();
         try{
-        VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId).get();
-        log.info("Fetched vehicle for vehicleId: {} with status: {}", vehicleId, vehicle != null ? vehicle.getVehicleStatus() : "null");
+            Optional<VehicleEntity> vehicleOpt = vehicleRepository.findByIdForUpdate(vehicleId);
+            if (vehicleOpt.isEmpty()) {
+                log.info("Vehicle not found for vehicleId: {}", vehicleId);
+                return false;
+            }
+            VehicleEntity vehicle = vehicleOpt.get();
+            log.info("Fetched vehicle for vehicleId: {} with status: {}", vehicleId, vehicle.getVehicleStatus());
 
-        if (vehicle == null || VehicleStatus.MAINTENANCE.toString().equals(vehicle.getVehicleStatus()) || VehicleStatus.BOOKED.toString().equals(vehicle.getVehicleStatus())) {
-            log.info("Vehicle is either null or not available for booking.");
-            return false;
-        }
+            if (VehicleStatus.MAINTENANCE.toString().equals(vehicle.getVehicleStatus()) || VehicleStatus.BOOKED.toString().equals(vehicle.getVehicleStatus())) {
+                log.info("Vehicle is not available for booking.");
+                return false;
+            }
 
-        if (!isAvailable(vehicleId, from, to)) {
-            return false;
-        }
-        log.info("Vehicle is available, proceeding with booking.");
-        VehicleBooking vehicleBooking = new VehicleBooking();
-        vehicleBooking.setBookedFrom(from);
-        vehicleBooking.setBookedTo(to);
-        vehicleBooking.setVehicle(vehicle);
-        vehicleBookingRepository.save(vehicleBooking);
+            if (!isAvailable(vehicleId, from, to)) {
+                return false;
+            }
+            log.info("Vehicle is available, proceeding with booking.");
+            VehicleBooking vehicleBooking = new VehicleBooking();
+            vehicleBooking.setBookedFrom(from);
+            vehicleBooking.setBookedTo(to);
+            vehicleBooking.setVehicle(vehicle);
+            vehicleBookingRepository.save(vehicleBooking);
 
-        vehicle.setVehicleStatus(VehicleStatus.BOOKED.toString());
-        log.info("Updating vehicle status to BOOKED for vehicleId: {}", vehicle.getVehicleID());
-        vehicleRepository.save(vehicle);
-        return true;}
+            vehicle.setVehicleStatus(VehicleStatus.BOOKED.toString());
+            log.info("Updating vehicle status to BOOKED for vehicleId: {}", vehicle.getVehicleID());
+            vehicleRepository.save(vehicle);
+            return true;}
         finally {
             lock.unlock();
         }
@@ -108,7 +115,12 @@ public class VehicleInventoryManager {
         ReentrantLock lock = new ReentrantLock();
         lock.lock();
         try {
-            VehicleEntity vehicle = vehicleRepository.findByIdForUpdate(vehicleId).get();
+            Optional<VehicleEntity> vehicleOpt = vehicleRepository.findByIdForUpdate(vehicleId);
+            if (vehicleOpt.isEmpty()) {
+                log.warn("Vehicle not found for vehicleId: {}", vehicleId);
+                return;
+            }
+            VehicleEntity vehicle = vehicleOpt.get();
 
             vehicleBookingRepository.deleteByVehicleIdAndReservationId(vehicleId, reservationId);
 
@@ -131,7 +143,9 @@ public class VehicleInventoryManager {
     public List<VehicleEntity> getAllAvailableVehicles(LocalDate from, LocalDate to) {
         return vehicleRepository.findAllAvailableVehicles(from, to);
     }
-
+    public List<VehicleEntity> getAllVehicles() {
+        return vehicleRepository.findAll();
+    }
     public List<VehicleBooking> getAllBookingsForVehicle(int vehicleId) {
         return vehicleBookingRepository.findByVehicleId(vehicleId);
     }
@@ -179,5 +193,25 @@ public class VehicleInventoryManager {
     public VehicleBooking getBookingDetails(int reservationId) {
         return vehicleBookingRepository.findById(reservationId).orElse(null);
     }
-}
 
+    @Transactional
+    public List<ReservationDTO> getAllReservations() {
+        List<Object[]> allBookingsWithVehicleInfo = vehicleBookingRepository.findAllBookingsWithVehicleInfo();
+        // Convert the JPQL results into ReservationDTOs
+        List<ReservationDTO> reservationDTOs = allBookingsWithVehicleInfo.stream().map(row -> {
+            VehicleBooking booking = (VehicleBooking) row[0];
+            VehicleEntity vehicle = (VehicleEntity) row[1];
+            return ReservationDTO.builder()
+                    .reservationId(booking.getReservationId())
+                    .vehicleNumber(vehicle.getVehicleNumber())
+                    .vehicleType(vehicle.getVehicleType())
+                    .dailyRentalCost(vehicle.getDailyRentalCost())
+                    .vehicleStatus(vehicle.getVehicleStatus())
+                    .bookedFrom(booking.getBookedFrom())
+                    .bookedTo(booking.getBookedTo())
+                    .build();
+        }).toList();
+        return reservationDTOs;
+    }
+
+}

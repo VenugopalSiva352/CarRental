@@ -41,5 +41,8 @@ public interface VehicleRepository extends JpaRepository<VehicleEntity, Integer>
             "  AND vb2.booked_from < :to AND vb2.booked_to > :from" +
             "))", nativeQuery = true)
     List<VehicleEntity> findAllAvailableVehicles(LocalDate from, LocalDate to);
+
+    //find all list of vehicles
+    List<VehicleEntity> findAll();
 }
 
