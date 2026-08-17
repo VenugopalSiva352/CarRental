@@ -1,7 +1,5 @@
 server:
- port: 8080
- servlet:
-   context-path: /app
+  port: 8080
 spring:
   application:
     name: CarRental
@@ -16,8 +14,39 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+    consumer:
+      group-id: car-rental-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      max-poll-records: 1
+      properties:
+        spring.json.trusted.packages: "*"
+    listener:
+      ack-mode: MANUAL_IMMEDIATE
+      poll-timeout: 3000
+      concurrency: 1
 
 springdoc:
   packages-to-scan: com.rental.services.CarRental
   swagger-ui:
-    path: /swagger-ui.html
+    path: /app/swagger-ui.html
+  api-docs:
+    path: /app/v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.rental.services.CarRental: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+

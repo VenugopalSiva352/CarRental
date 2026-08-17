@@ -14,10 +14,14 @@ public interface VehicleBookingRepository extends JpaRepository<VehicleBooking, 
     @Query(value = "SELECT * FROM vehicle_bookings WHERE vehicle_id = :vehicleId",nativeQuery = true)
     List<VehicleBooking> findByVehicleId(int vehicleId);
     @Modifying
-    @Transactional
-    @Query(value = "DELETE FROM vehicle_bookings WHERE vehicle_id = :vehicleId AND reservation_id = :reservationId",nativeQuery = true)
-    void deleteByVehicleIdAndReservationId(int vehicleId, int reservationId);
+@Transactional
+@Query(value = "DELETE FROM bills WHERE reservation_id = :reservationId", nativeQuery = true)
+void deleteAssociatedBills(int reservationId);
 
+@Modifying
+@Transactional
+@Query(value = "DELETE FROM vehicle_bookings WHERE vehicle_id = :vehicleId AND reservation_id = :reservationId", nativeQuery = true)
+void deleteByVehicleIdAndReservationId(int vehicleId, int reservationId);
     // Return VehicleBooking and its VehicleEntity as a pair using JPQL so entities are returned directly
     @Query("SELECT vb, v FROM VehicleBooking vb JOIN vb.vehicle v")
     List<Object[]> findAllBookingsWithVehicleInfo();

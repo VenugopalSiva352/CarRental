@@ -26,7 +26,7 @@ public class VehicleController {
     public VehicleEntity saveVehicle(@Validated @RequestBody VehicleDTO vehicle){
         return vehicleInventoryManager.addVehicle(vehicle);
     }
-
+    //format for date :2026-05-29
     @PostMapping("/vehicles/reserve")
     public Boolean reserveVehicle(@RequestParam("vehicleId") int vehicleId,
                                   @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -39,7 +39,7 @@ public class VehicleController {
         return vehicleInventoryManager.getAllAvailableVehicles(from, to);
     }
     @GetMapping("/vehicles/bookings")
-    public List<VehicleBooking> getAllBookingsForVehicle(@RequestParam("vehicleId") int vehicleId){
+    public ResponseEntity<List<VehicleBooking>> getAllBookingsForVehicle(@RequestParam("vehicleId") int vehicleId){
         return vehicleInventoryManager.getAllBookingsForVehicle(vehicleId);
     }
     @DeleteMapping("/vehicles/cancel")

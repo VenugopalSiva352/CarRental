@@ -11,6 +11,7 @@ import com.rental.services.CarRental.product.repositories.VehicleRepository;
 import com.rental.services.CarRental.product.utility.DateInterval;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -121,7 +122,9 @@ public class VehicleInventoryManager {
                 return;
             }
             VehicleEntity vehicle = vehicleOpt.get();
-
+            log.info("Deleting Bills associated with vehicle reservation Id:{}",reservationId);
+            vehicleBookingRepository.deleteAssociatedBills(reservationId);
+            log.info("Deleting Vehicle Reservation for vehicleId:{} and reservationId:{}",vehicleId,reservationId);
             vehicleBookingRepository.deleteByVehicleIdAndReservationId(vehicleId, reservationId);
 
             List<VehicleBooking> remainingBookings = vehicleBookingRepository.findByVehicleId(vehicleId);
@@ -146,9 +149,13 @@ public class VehicleInventoryManager {
     public List<VehicleEntity> getAllVehicles() {
         return vehicleRepository.findAll();
     }
-    public List<VehicleBooking> getAllBookingsForVehicle(int vehicleId) {
-        return vehicleBookingRepository.findByVehicleId(vehicleId);
+    public ResponseEntity<List<VehicleBooking>> getAllBookingsForVehicle(int vehicleId) {
+    List<VehicleBooking> bookings = vehicleBookingRepository.findByVehicleId(vehicleId);
+    if (bookings == null || bookings.isEmpty()) {
+        throw new IllegalArgumentException("No bookings found for vehicleId: " + vehicleId);
     }
+    return ResponseEntity.ok(bookings);
+}
 
     public boolean cancelBooking(int vehicleId, int reservationId) {
         release(vehicleId, reservationId);

@@ -3,7 +3,10 @@ package com.rental.services.CarRental.product.service;
 
 import com.rental.services.CarRental.product.entity.BillEntity;
 import com.rental.services.CarRental.product.entity.PaymentEntity;
+import com.rental.services.CarRental.product.entity.VehicleBooking;
 import com.rental.services.CarRental.product.enums.PaymentMode;
+import com.rental.services.CarRental.product.producer.PaymentNotificationProducer;
+import com.rental.services.CarRental.product.records.PaymentStatus;
 import com.rental.services.CarRental.product.repositories.BillingRepository;
 import com.rental.services.CarRental.product.repositories.PaymentRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +21,8 @@ public class UpiPayment implements PaymentService {
 
     @Autowired
     private BillingRepository billingRepository;
+    @Autowired
+    private PaymentNotificationProducer paymentNotificationProducer;
 
     @Autowired
     private PaymentRepository paymentRepository;
@@ -35,6 +40,13 @@ public class UpiPayment implements PaymentService {
             bill.setBillPaid(true);
             billingRepository.save(bill);
             log.info("Payment processed successfully for bill id: {}", billId);
+            log.info("Sending payment status to kafka for bill id: {}", billId);
+            VehicleBooking vehicleBooking = bill.getReservationId();
+            int reservationId = vehicleBooking.getReservationId();
+            PaymentStatus paymentStatus = PaymentStatus.builder().billId(billId).reservationId(reservationId).totalBillAmount(bill.getTotalBillAmount()).billPaid(true).paymentId(paymentEntity.getPaymentId()).amountPaid(amount).paymentMethod(PaymentMode.UPI.toString()).paymentDate(LocalDate.now()).build();
+            log.info("PaymentStatus before sending to kafka for bill id: {} is : {}", billId,paymentStatus);
+            paymentNotificationProducer.sendPaymentStatus("UPI", paymentStatus);
+            log.info("Successfully send payment status to kafka for bill id: {}", billId);
         } else {
             log.error("Bill entity not found for bill id: {}", billId);
         }

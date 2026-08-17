@@ -27,6 +27,9 @@ configurations {
 }
 
 dependencies {
+	// Spring Boot 3.2.x does not publish a `spring-boot-starter-kafka` artifact in Maven Central for this version.
+	// Use the Spring Kafka library directly (managed by Spring Boot's dependency management):
+	implementation 'org.springframework.kafka:spring-kafka:3.2.0'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
